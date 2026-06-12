@@ -1,20 +1,357 @@
-考績追蹤系統
-
-連線中...
-⚙ 設定
-＋ 新增
-↑ 批次匯入
-🔍 查詢
-↓ 匯出
-👤 個人總覽
-📊 團隊排名
-新增考績紀錄
-組員
-類別
-點數
-評估期間
-備註（選填）
-✓ 新增紀錄
-紀錄列表
-
-
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>考績追蹤系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh}
+.container{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+.title{font-size:20px;font-weight:600}
+.status{font-size:11px;color:#666;display:flex;align-items:center;gap:5px;margin-top:3px}
+.sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#aaa}
+.sync-dot.ok{background:#1D9E75}
+.sync-dot.err{background:#E24B4A}
+.sync-dot.busy{background:#EF9F27;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid #e0e0e0;flex-wrap:wrap}
+.tab{padding:8px 14px;font-size:13px;font-weight:400;color:#666;background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab.active{color:#1a1a1a;font-weight:500;border-bottom:2px solid #1a1a1a}
+.section{display:none}.section.active{display:block}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+label{font-size:13px;color:#666;display:block;margin-bottom:4px}
+select,input[type=text],input[type=number]{width:100%;padding:8px 10px;font-size:14px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#1a1a1a}
+textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#1a1a1a;resize:vertical;font-family:monospace}
+.btn{padding:8px 16px;font-size:13px;border:1px solid #ddd;border-radius:6px;background:transparent;color:#1a1a1a;cursor:pointer}
+.btn:hover{background:#f5f5f5}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn-primary:hover{opacity:.85}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-danger{color:#d32f2f;border-color:#d32f2f}
+.btn-danger:hover{background:#ffeaea}
+.section-title{font-size:14px;font-weight:500;margin-bottom:.75rem}
+.rec-list{display:flex;flex-direction:column;gap:6px}
+.rec-item{border:1px solid #e0e0e0;border-radius:8px;padding:8px 10px;background:#fff}
+.rec-item.editing{background:#f9f9f9}
+.rec-item.confirming{border-color:#d32f2f;background:#fff5f5}
+.rec-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rec-actions{display:flex;gap:6px;margin-left:auto;flex-shrink:0}
+.rec-meta{font-size:11px;color:#999;margin-top:4px}
+.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.edit-grid select,.edit-grid input{font-size:12px;padding:5px 7px}
+.edit-btns{display:flex;gap:6px;margin-top:8px}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:500;white-space:nowrap}
+.cat-0{background:#EEEDFE;color:#3C3489}
+.cat-1{background:#E1F5EE;color:#085041}
+.cat-2{background:#FAEEDA;color:#633806}
+.cat-3{background:#FAECE7;color:#4A1B0C}
+.cat-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
+.cat-card{border:1px solid #e0e0e0;border-radius:8px;padding:10px 12px}
+.cat-card-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.cat-card-key{font-size:11px;color:#666}
+.cat-card-val{font-size:13px;font-weight:500}
+.score-adj{display:flex;align-items:center;gap:6px}
+.adj-btn{width:24px;height:24px;border:1px solid #ddd;border-radius:6px;background:transparent;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.adj-btn:hover{background:#f0f0f0}
+.adj-score{font-size:14px;font-weight:500;min-width:28px;text-align:center}
+.adj-score.modified{color:#EF9F27}
+.score-table{width:100%;border-collapse:collapse;font-size:13px}
+.score-table th{text-align:left;font-weight:500;color:#666;padding:7px 8px;border-bottom:1px solid #e0e0e0;font-size:11px}
+.score-table td{padding:7px 8px;border-bottom:1px solid #e0e0e0;color:#1a1a1a}
+.score-table tr:last-child td{border-bottom:none}
+.final-box{margin-top:1rem;border:1px solid #e0e0e0;border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:#f9f9f9}
+.rank-table{width:100%;font-size:12px;border-collapse:collapse}
+.rank-table th{text-align:center;font-weight:500;color:#666;padding:6px;border-bottom:1px solid #e0e0e0;font-size:11px;white-space:nowrap}
+.rank-table th.left{text-align:left}
+.rank-table td{padding:6px;border-bottom:1px solid #e0e0e0;text-align:center;white-space:nowrap}
+.rank-table td.left{text-align:left}
+.rank-table tr:last-child td{border-bottom:none}
+.alert{padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:10px;display:none}
+.alert.ok{background:#e8f5e9;color:#2e7d32;display:block}
+.alert.err{background:#ffebee;color:#c62828;display:block}
+.detail-table{width:100%;font-size:12px;border-collapse:collapse}
+.detail-table th{text-align:left;font-weight:500;color:#666;padding:5px 6px;border-bottom:1px solid #e0e0e0;font-size:11px}
+.detail-table td{padding:5px 6px;border-bottom:1px solid #e0e0e0}
+.detail-table tr:last-child td{border-bottom:none}
+.preview-table{width:100%;font-size:12px;border-collapse:collapse;margin-top:8px}
+.preview-table th{text-align:left;font-weight:500;color:#666;padding:4px 6px;border-bottom:1px solid #e0e0e0;font-size:11px}
+.preview-table td{padding:4px 6px;border-bottom:1px solid #e0e0e0}
+.preview-table tr.err-row td{color:#c62828;background:#ffebee}
+.hint-box{background:#f5f5f5;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;margin-bottom:10px;font-family:monospace;line-height:1.7}
+.csv-output{width:100%;min-height:140px;font-family:monospace;font-size:11px;padding:8px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;resize:vertical;margin-top:8px}
+.query-member-block{border:1px solid #e0e0e0;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.query-member-header{padding:8px 12px;background:#f5f5f5;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+.query-cat-block{padding:8px 12px;border-top:1px solid #e0e0e0}
+.query-cat-label{font-size:11px;font-weight:500;color:#666;margin-bottom:5px}
+.query-rec-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid #f0f0f0}
+.query-rec-row:last-child{border-bottom:none}
+.query-pts{font-size:12px;font-weight:500;color:#1D9E75;min-width:36px}
+.query-note{font-size:12px;flex:1}
+.query-date{font-size:11px;color:#999;white-space:nowrap}
+.migrate-box{background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:10px 12px;margin-bottom:1.25rem}
+@media(max-width:600px){.form-row,.form-row-3,.cat-card-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="title">考績追蹤系統</div>
+      <div class="status"><span class="sync-dot busy" id="syncDot"></span><span id="syncLabel">連線中...</span></div>
+    </div>
+    <button class="btn btn-sm" onclick="openSettings()">⚙ 設定</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab-add" onclick="switchTab('add',this)">＋ 新增</button>
+    <button class="tab" id="tab-import" onclick="switchTab('import',this)">↑ 批次匯入</button>
+    <button class="tab" id="tab-query" onclick="switchTab('query',this)">🔍 查詢</button>
+    <button class="tab" id="tab-export" onclick="switchTab('export',this)">↓ 匯出</button>
+    <button class="tab" id="tab-person" onclick="switchTab('person',this)">👤 個人總覽</button>
+    <button class="tab" id="tab-rank" onclick="switchTab('rank',this)">📊 團隊排名</button>
+  </div>
+  <div class="section active" id="sec-add">
+    <div class="card">
+      <div class="section-title">新增考績紀錄</div>
+      <div id="addAlert" class="alert"></div>
+      <div class="form-row">
+        <div><label>組員</label><select id="sel-member"></select></div>
+        <div><label>類別</label><select id="sel-cat"></select></div>
+      </div>
+      <div class="form-row">
+        <div><label>點數</label><select id="sel-pts"></select></div>
+        <div><label>評估期間</label><select id="sel-period"></select></div>
+      </div>
+      <div style="margin-bottom:10px"><label>備註（選填）</label><input type="text" id="inp-note" placeholder="例：完成特稿、專題報導..."></div>
+      <button class="btn btn-primary" onclick="addRecord()">✓ 新增紀錄</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div class="section-title" style="margin:0">紀錄列表</div>
+        <select id="filter-recent" style="font-size:12px;padding:4px 8px;width:auto" onchange="renderRecent()"></select>
+      </div>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+  <div class="section" id="sec-import">
+    <div class="card">
+      <div class="section-title">批次匯入說明</div>
+      <div class="hint-box">格式：組員, 類別, 點數, 備註<br>範例：王駿杰, 類別A, 5, 5/7 A8全版5文<br><br>· 類別請填寫設定中的類別名稱<br>· 備註可留空（僅需三個欄位）<br>· 每行一筆，第一行可為標題列（自動略過）</div>
+      <div class="form-row"><div><label>套用期間</label><select id="import-period"></select></div></div>
+      <label>貼入資料</label>
+      <textarea id="import-text" rows="8" style="margin-top:4px;margin-bottom:10px"></textarea>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-primary" onclick="previewImport()">👁 預覽解析</button>
+        <button class="btn" onclick="clearImport()">✕ 清除</button>
+      </div>
+      <div id="import-preview"></div>
+    </div>
+  </div>
+  <div class="section" id="sec-query">
+    <div class="card">
+      <div class="section-title">條件查詢</div>
+      <div class="form-row-3">
+        <div><label>期間</label><select id="q-period" onchange="runQuery()"></select></div>
+        <div><label>最低點數</label><input type="number" id="q-minpts" value="1" min="1" onchange="runQuery()" oninput="runQuery()"></div>
+        <div><label>類別（選填）</label><select id="q-cat" onchange="runQuery()"></select></div>
+      </div>
+      <div style="font-size:11px;color:#999;margin-top:-4px">只顯示有備註的紀錄，依組員名單順序排列。</div>
+    </div>
+    <div id="query-result"></div>
+  </div>
+  <div class="section" id="sec-export">
+    <div class="card">
+      <div class="section-title">匯出備註紀錄</div>
+      <div class="form-row"><div><label>期間篩選</label><select id="export-period" onchange="renderExportStats()"></select></div></div>
+      <div id="export-stats"></div>
+      <div style="font-size:12px;color:#999;margin-bottom:1rem">格式：每位組員一個區塊，依類別條列有備註的紀錄。</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-primary" onclick="doExport()">📄 產生內容</button>
+        <button class="btn" id="copy-btn" style="display:none" onclick="copyExport()">📋 全部複製</button>
+      </div>
+      <div id="export-alert" class="alert"></div>
+      <div id="csv-output-wrap" style="display:none">
+        <label style="margin-bottom:4px">匯出內容</label>
+        <textarea id="csv-output" class="csv-output" readonly></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="section" id="sec-person">
+    <div class="card">
+      <div class="form-row">
+        <div><label>組員</label><select id="sel-view-member" onchange="renderPerson()"></select></div>
+        <div><label>期間</label><select id="sel-view-period" onchange="renderPerson()"></select></div>
+      </div>
+    </div>
+    <div id="person-content"></div>
+  </div>
+  <div class="section" id="sec-rank">
+    <div class="card" style="margin-bottom:.75rem">
+      <div><label>期間</label><select id="sel-rank-period" onchange="renderRank()"></select></div>
+    </div>
+    <div id="rank-content"></div>
+  </div>
+</div>
+<div id="settings-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:999;overflow-y:auto;padding:2rem 1rem">
+  <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:520px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div style="font-size:16px;font-weight:600">系統設定</div>
+      <button class="btn btn-sm" onclick="closeSettings()">✕</button>
+    </div>
+    <div id="settingsAlert" class="alert"></div>
+    <div class="migrate-box">
+      <div style="font-size:13px;font-weight:500;margin-bottom:4px">一鍵遷移本機資料</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">將舊版系統（localStorage）的資料上傳至 Firebase 雲端。</div>
+      <div id="migrate-alert" class="alert"></div>
+      <button class="btn btn-sm" onclick="migrateLocal()">⬆ 從本機匯入舊資料</button>
+    </div>
+    <div style="font-size:13px;font-weight:500;color:#666;margin-bottom:.5rem">考績類別名稱（共4類）</div>
+    <div id="cat-inputs" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem"></div>
+    <div style="font-size:13px;font-weight:500;color:#666;margin-bottom:.5rem">各類別權重（總和須為100%）</div>
+    <div id="weight-inputs" style="margin-bottom:.25rem"></div>
+    <div id="weight-total" style="font-size:12px;margin-bottom:1rem"></div>
+    <div style="font-size:13px;font-weight:500;color:#666;margin-bottom:.25rem">可選點數</div>
+    <div style="font-size:11px;color:#999;margin-bottom:.4rem">以逗號分隔，例：1,2,3,5,7</div>
+    <input type="text" id="inp-pts-cfg" style="margin-bottom:1rem">
+    <div style="font-size:13px;font-weight:500;color:#666;margin-bottom:.25rem">評估期間</div>
+    <div style="font-size:11px;color:#999;margin-bottom:.4rem">以逗號分隔，例：2025Q1,2025Q2,2025Q3</div>
+    <input type="text" id="inp-periods-cfg" style="margin-bottom:1rem">
+    <div style="font-size:13px;font-weight:500;color:#666;margin-bottom:.25rem">組員名單（一行一人）</div>
+    <textarea id="inp-members-cfg" rows="10" style="margin-bottom:1rem"></textarea>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveSettings()">💾 儲存設定</button>
+      <button class="btn" onclick="closeSettings()">取消</button>
+    </div>
+  </div>
+</div><script>
+const PROJECT='kpi-tracker-483df';
+const API_KEY='AIzaSyBO9MhO6JU9YL6G0o1zEx1g0a2IxuCSN1I';
+const BASE=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/kpi_tracker`;
+const LS_KEY='perf_tracker_v3',ADJ_KEY='perf_adj_v1';
+const DEFAULT={cats:['類別A','類別B','類別C','類別D'],weights:[25,25,25,25],pts:[1,2,3,5],periods:['2025Q1','2025Q2','2025Q3','2025Q4'],members:Array.from({length:25},(_,i)=>'組員'+(i+1))};
+let cfg,records=[],adjScores={},saveTimer=null;
+function syncStatus(state,msg){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncLabel');if(!dot||!lbl)return;dot.className='sync-dot '+state;lbl.textContent=msg;}
+function toFS(val){if(val===null||val===undefined)return{nullValue:null};if(typeof val==='boolean')return{booleanValue:val};if(typeof val==='number')return Number.isInteger(val)?{integerValue:String(val)}:{doubleValue:val};if(typeof val==='string')return{stringValue:val};if(Array.isArray(val))return{arrayValue:{values:val.map(toFS)}};if(typeof val==='object'){const fields={};for(const k in val)fields[k]=toFS(val[k]);return{mapValue:{fields}};}return{stringValue:String(val)};}
+function fromFS(val){if(!val)return null;if('nullValue'in val)return null;if('booleanValue'in val)return val.booleanValue;if('integerValue'in val)return parseInt(val.integerValue);if('doubleValue'in val)return val.doubleValue;if('stringValue'in val)return val.stringValue;if('arrayValue'in val)return(val.arrayValue.values||[]).map(fromFS);if('mapValue'in val){const o={};for(const k in(val.mapValue.fields||{}))o[k]=fromFS(val.mapValue.fields[k]);return o;}return null;}
+async function fbGet(docId){
+  const res=await fetch(`${BASE}/${docId}?key=${API_KEY}`);
+  if(res.status===404)return null;
+  const d=await res.json();
+  if(d.error)return null;
+  const out={};for(const k in(d.fields||{}))out[k]=fromFS(d.fields[k]);return out;
+}
+async function fbSet(docId,data){const fields={};for(const k in data)fields[k]=toFS(data[k]);const res=await fetch(`${BASE}/${docId}?key=${API_KEY}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields})});if(!res.ok)throw new Error('SET '+res.status);}
+async function fbLoad(){
+  try{
+    syncStatus('busy','連線 Firebase...');
+    const[d,a]=await Promise.all([fbGet('perf_data'),fbGet('perf_adj')]);
+    if(d){cfg=d.cfg||JSON.parse(JSON.stringify(DEFAULT));records=d.records||[];}
+    else{cfg=JSON.parse(JSON.stringify(DEFAULT));records=[];}
+    adjScores=a?a.adj||{}:{};
+    syncStatus('ok','雲端已連線 · '+records.length+' 筆紀錄');
+    initUI();
+  }catch(e){
+    syncStatus('err','連線失敗：'+e.message);
+    cfg=JSON.parse(JSON.stringify(DEFAULT));records=[];adjScores={};
+    initUI();
+  }
+}
+async function fbSave(){try{syncStatus('busy','同步中...');await fbSet('perf_data',{cfg,records});syncStatus('ok','已同步 · '+records.length+' 筆紀錄');}catch(e){syncStatus('err','同步失敗');}}
+async function fbSaveAdj(){try{await fbSet('perf_adj',{adj:adjScores});}catch(e){}}
+function scheduleSave(){if(saveTimer)clearTimeout(saveTimer);saveTimer=setTimeout(fbSave,800);}
+function migrateLocal(){
+  const al=document.getElementById('migrate-alert');
+  try{
+    const r=localStorage.getItem(LS_KEY);
+    if(!r){al.className='alert err';al.textContent='本機沒有找到舊資料';return;}
+    const d=JSON.parse(r);cfg=d.cfg;records=d.records;
+    const a=localStorage.getItem(ADJ_KEY);adjScores=a?JSON.parse(a):{};
+    fbSave().then(()=>fbSaveAdj()).then(()=>{al.className='alert ok';al.textContent='✓ 遷移成功！'+records.length+' 筆紀錄已上傳';initUI();setTimeout(()=>{al.className='alert';},4000);});
+  }catch(e){al.className='alert err';al.textContent='遷移失敗：'+e.message;}
+}
+function initUI(){
+  const last=cfg.periods[cfg.periods.length-1]||'';
+  pSel('sel-member',cfg.members);pCat('sel-cat');pPts('sel-pts');
+  pSel('sel-period',cfg.periods,last);pSel('filter-recent',['全部期間',...cfg.periods],'全部期間');
+  pSel('sel-view-member',cfg.members);pSel('sel-view-period',cfg.periods,last);
+  pSel('sel-rank-period',cfg.periods,last);pSel('import-period',cfg.periods,last);
+  pSel('export-period',['全部期間',...cfg.periods],'全部期間');pSel('q-period',cfg.periods,last);
+  const qc=document.getElementById('q-cat');
+  if(qc)qc.innerHTML='<option value="">全部類別</option>'+cfg.cats.map((c,i)=>`<option value="${i}">${c}</option>`).join('');
+  renderRecent();renderExportStats();
+}
+function pSel(id,arr,def){const s=document.getElementById(id);if(!s)return;s.innerHTML=arr.map(v=>`<option value="${v}">${v}</option>`).join('');if(def!==undefined)s.value=def;}
+function pCat(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=cfg.cats.map((c,i)=>`<option value="${i}">${c}</option>`).join('');}
+function pPts(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=cfg.pts.map(p=>`<option value="${p}">+${p} 點</option>`).join('');}
+function switchTab(t,el){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));el.classList.add('active');document.getElementById('sec-'+t).classList.add('active');if(t==='person')renderPerson();if(t==='rank')renderRank();if(t==='export')renderExportStats();if(t==='query')runQuery();}
+function p25(arr){const s=[...arr].sort((a,b)=>a-b);return s[Math.min(Math.floor(s.length*.25),s.length-1)];}
+function catScore(pts,all){if(pts===0)return 75;const nz=all.filter(p=>p>0),mx=Math.max(...all),mn=nz.length?Math.min(...nz):0,p=p25(all);if(mx===0)return 75;if(pts>=p){return mx===p?80:Math.round(80+(pts-p)/(mx-p)*10);}return p===mn?75:Math.round(75+(pts-mn)/(p-mn)*5);}
+function catTotals(m,period){return cfg.cats.map((_,i)=>records.filter(r=>r.member===m&&r.period===period&&r.cat===i).reduce((s,r)=>s+r.pts,0));}
+function allCatTotals(period,ci){return cfg.members.map(m=>records.filter(r=>r.member===m&&r.period===period&&r.cat===ci).reduce((s,r)=>s+r.pts,0));}
+function akey(period,m,ci){return period+':'+m+':'+ci;}
+function adjScore(period,m,ci,base){return base+(adjScores[akey(period,m,ci)]||0);}
+function finalScore(m,period){const ct=catTotals(m,period);const cb=cfg.cats.map((_,i)=>catScore(ct[i],allCatTotals(period,i)));const ca=cb.map((b,i)=>adjScore(period,m,i,b));return{ct,cb,ca,final:Math.round(ca.reduce((s,v,i)=>s+v*(cfg.weights[i]/100),0))};}
+function adjustScore(period,m,ci,d){adjScores[akey(period,m,ci)]=(adjScores[akey(period,m,ci)]||0)+d;fbSaveAdj();renderPerson();}
+function resetAdj(period,m,ci){delete adjScores[akey(period,m,ci)];fbSaveAdj();renderPerson();}
+let editingId=null,confirmingId=null;
+function addRecord(){const m=document.getElementById('sel-member').value,c=parseInt(document.getElementById('sel-cat').value),p=parseInt(document.getElementById('sel-pts').value),period=document.getElementById('sel-period').value,note=document.getElementById('inp-note').value.trim(),al=document.getElementById('addAlert');if(!m||isNaN(c)||isNaN(p)||!period){al.className='alert err';al.textContent='請填寫完整資料';return;}records.push({id:Date.now(),member:m,cat:c,pts:p,period,note,date:new Date().toLocaleDateString('zh-TW')});scheduleSave();al.className='alert ok';al.textContent='✓ 已新增：'+m+' · '+cfg.cats[c]+' · +'+p+' 點';document.getElementById('inp-note').value='';renderRecent();setTimeout(()=>{al.className='alert';},3000);}
+function askDelete(id){confirmingId=id;editingId=null;renderRecent();}
+function cancelDelete(){confirmingId=null;renderRecent();}
+function confirmDelete(id){records=records.filter(r=>r.id!==id);confirmingId=null;scheduleSave();renderRecent();}
+function startEdit(id){editingId=id;confirmingId=null;renderRecent();}
+function cancelEdit(){editingId=null;renderRecent();}
+function saveEdit(id){const r=records.find(r=>r.id===id);if(!r)return;r.member=document.getElementById('em-'+id).value;r.cat=parseInt(document.getElementById('ec-'+id).value);r.pts=parseInt(document.getElementById('ep-'+id).value);r.period=document.getElementById('epr-'+id).value;r.note=document.getElementById('en-'+id).value.trim();editingId=null;scheduleSave();renderRecent();}
+function renderRecent(){
+  const fp=document.getElementById('filter-recent').value,el=document.getElementById('recent-list');
+  let recs=[...records].reverse();if(fp!=='全部期間')recs=recs.filter(r=>r.period===fp);
+  if(!recs.length){el.innerHTML='<div style="text-align:center;color:#999;font-size:13px;padding:1.5rem 0">尚無紀錄</div>';return;}
+  el.innerHTML='<div class="rec-list">'+recs.map(r=>{
+    if(editingId===r.id){const mO=cfg.members.map(m=>`<option value="${m}"${m===r.member?' selected':''}>${m}</option>`).join('');const cO=cfg.cats.map((c,i)=>`<option value="${i}"${i===r.cat?' selected':''}>${c}</option>`).join('');const pO=cfg.pts.map(p=>`<option value="${p}"${p===r.pts?' selected':''}>${p}</option>`).join('');const prO=cfg.periods.map(p=>`<option value="${p}"${p===r.period?' selected':''}>${p}</option>`).join('');return `<div class="rec-item editing"><div style="font-size:12px;color:#666;margin-bottom:6px">編輯紀錄</div><div class="edit-grid"><div><label style="font-size:11px">組員</label><select id="em-${r.id}">${mO}</select></div><div><label style="font-size:11px">類別</label><select id="ec-${r.id}">${cO}</select></div><div><label style="font-size:11px">點數</label><select id="ep-${r.id}">${pO}</select></div><div><label style="font-size:11px">期間</label><select id="epr-${r.id}">${prO}</select></div></div><div style="margin-top:6px"><label style="font-size:11px">備註</label><input type="text" id="en-${r.id}" value="${r.note||''}"></div><div class="edit-btns"><button class="btn btn-primary btn-sm" onclick="saveEdit(${r.id})">✓ 儲存</button><button class="btn btn-sm" onclick="cancelEdit()">✕ 取消</button></div></div>`;}
+    if(confirmingId===r.id){return `<div class="rec-item confirming"><div style="font-size:13px;color:#c62828;font-weight:500;margin-bottom:6px">確定要刪除這筆紀錄嗎？</div><div style="font-size:12px;color:#666;margin-bottom:10px">${r.member} · <span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span> · +${r.pts} 點 · ${r.period}</div><div style="display:flex;gap:8px"><button class="btn btn-danger btn-sm" onclick="confirmDelete(${r.id})">確認刪除</button><button class="btn btn-sm" onclick="cancelDelete()">取消</button></div></div>`;}
+    return `<div class="rec-item"><div class="rec-main"><span style="font-size:13px;font-weight:500">${r.member}</span><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span><span style="color:#1D9E75;font-weight:500;font-size:13px">+${r.pts} 點</span><span style="font-size:11px;color:#999">${r.period}</span><div class="rec-actions"><button class="btn btn-sm" onclick="startEdit(${r.id})">✏ 編輯</button><button class="btn btn-sm btn-danger" onclick="askDelete(${r.id})">🗑 刪除</button></div></div>${r.note?`<div class="rec-meta">${r.note}</div>`:''}</div>`;
+  }).join('')+'</div>';
+}
+function renderPerson(){
+  const m=document.getElementById('sel-view-member').value,period=document.getElementById('sel-view-period').value;if(!m||!period)return;
+  const{ct,cb,ca,final}=finalScore(m,period);
+  const recs=records.filter(r=>r.member===m&&r.period===period);
+  const cards=cfg.cats.map((c,i)=>{const base=cb[i],adj=ca[i],delta=adjScores[akey(period,m,i)]||0,mod=delta!==0;return `<div class="cat-card"><div style="font-size:11px;font-weight:500;margin-bottom:8px"><span class="badge cat-${i}">${c}</span></div><div class="cat-card-row"><span class="cat-card-key">累積點數</span><span class="cat-card-val">${ct[i]} 點</span></div><div class="cat-card-row"><span class="cat-card-key">考績分數${mod?` <span style="font-size:10px;color:#EF9F27">(已微調)</span>`:''}</span><div class="score-adj"><button class="adj-btn" onclick="adjustScore('${period}','${m}',${i},-1)">−</button><span class="adj-score${mod?' modified':''}">${adj}</span><button class="adj-btn" onclick="adjustScore('${period}','${m}',${i},1)">+</button>${mod?`<button class="adj-btn" style="font-size:10px;color:#999" onclick="resetAdj('${period}','${m}',${i})" title="還原">↺</button>`:''}</div></div>${mod?`<div style="font-size:10px;color:#999;text-align:right">系統值：${base}</div>`:''}</div>`;}).join('');
+  const rows=cfg.cats.map((c,i)=>{const adj=ca[i],delta=adjScores[akey(period,m,i)]||0,w=Math.round(adj*(cfg.weights[i]/100)*10)/10;return `<tr><td><span class="badge cat-${i}">${c}</span></td><td style="text-align:center">${ct[i]}</td><td style="text-align:center;font-weight:500${delta?';color:#EF9F27':''}">${adj}${delta?` <span style="font-size:10px">(${delta>0?'+':''}${delta})</span>`:''}</td><td style="text-align:center">${cfg.weights[i]}%</td><td style="text-align:center;font-weight:500">${w}</td></tr>`;}).join('');
+  document.getElementById('person-content').innerHTML=`<div class="card"><div class="section-title">各類別成績</div><div class="cat-card-grid">${cards}</div></div><div class="card"><div class="section-title">考績計算總表</div><table class="score-table"><thead><tr><th>類別</th><th style="text-align:center">累積點數</th><th style="text-align:center">考績分數</th><th style="text-align:center">權重</th><th style="text-align:center">加權分數</th></tr></thead><tbody>${rows}</tbody></table><div class="final-box"><div><div style="font-size:13px;color:#666">最終考績</div><div style="font-size:11px;color:#999;margin-top:2px">各類別加權分數總和</div></div><div style="font-size:28px;font-weight:600;color:#1D9E75">${final}</div></div></div><div class="card"><div class="section-title">本期紀錄明細</div>${recs.length?`<table class="detail-table"><thead><tr><th>日期</th><th>類別</th><th>點數</th><th>備註</th></tr></thead><tbody>${[...recs].reverse().map(r=>`<tr><td style="color:#999">${r.date}</td><td><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span></td><td style="color:#1D9E75;font-weight:500">+${r.pts}</td><td style="color:#666">${r.note||'—'}</td></tr>`).join('')}</tbody></table>`:'<div style="text-align:center;color:#999;font-size:13px;padding:1rem 0">本期尚無紀錄</div>'}</div>`;
+}
+function renderRank(){
+  const period=document.getElementById('sel-rank-period').value;
+  const rows=cfg.members.map(m=>{const{ct,ca,final:f}=finalScore(m,period);return{m,ct,ca,f};}).sort((a,b)=>b.f-a.f);
+  const medal=i=>i===0?'①':i===1?'②':i===2?'③':(i+1)+'';
+  const mc=i=>i===0?'#BA7517':i===1?'#888780':i===2?'#534AB7':'#666';
+  document.getElementById('rank-content').innerHTML=`<div class="card" style="overflow-x:auto"><table class="rank-table"><thead><tr><th class="left" rowspan="2" style="vertical-align:middle">#</th><th class="left" rowspan="2" style="vertical-align:middle">姓名</th>${cfg.cats.map((c,i)=>`<th colspan="2"><span class="badge cat-${i}">${c}</span></th>`).join('')}<th rowspan="2" style="vertical-align:middle">最終考績</th></tr><tr>${cfg.cats.map(()=>`<th style="font-size:10px;color:#999">點數</th><th style="font-size:10px;color:#999">分數</th>`).join('')}</tr></thead><tbody>${rows.map((s,i)=>`<tr><td class="left" style="font-weight:500;color:${mc(i)}">${medal(i)}</td><td class="left" style="font-weight:${i<3?'500':'400'}">${s.m}</td>${cfg.cats.map((_,ci)=>`<td>${s.ct[ci]}</td><td style="font-weight:500;color:#666">${s.ca[ci]}</td>`).join('')}<td style="font-weight:600;color:#1D9E75;font-size:14px">${s.f}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function runQuery(){
+  const period=document.getElementById('q-period')?.value,minPts=parseInt(document.getElementById('q-minpts')?.value)||1,catFilter=document.getElementById('q-cat')?.value,el=document.getElementById('query-result');if(!el)return;
+  let filtered=records.filter(r=>r.period===period&&r.note&&r.note.trim()!==''&&r.pts>=minPts);
+  if(catFilter!=='')filtered=filtered.filter(r=>r.cat===parseInt(catFilter));
+  if(!filtered.length){el.innerHTML=`<div class="card"><div style="text-align:center;color:#999;font-size:13px;padding:1.5rem 0">查無符合條件的紀錄</div></div>`;return;}
+  let total=0;
+  el.innerHTML=`<div style="font-size:12px;color:#666;margin-bottom:10px" id="qcount"></div>`+cfg.members.map(m=>{const mr=filtered.filter(r=>r.member===m);if(!mr.length)return '';total+=mr.length;return `<div class="query-member-block"><div class="query-member-header"><span>${m}</span><span style="font-size:11px;color:#999;font-weight:400">${mr.length} 筆</span></div>`+cfg.cats.map((cat,i)=>{const cr=mr.filter(r=>r.cat===i);if(!cr.length)return '';return `<div class="query-cat-block"><div class="query-cat-label"><span class="badge cat-${i}">${cat}</span></div>${cr.map(r=>`<div class="query-rec-row"><span class="query-pts">+${r.pts}點</span><span class="query-note">${r.note}</span><span class="query-date">${r.date||''}</span></div>`).join('')}</div>`;}).join('')+'</div>';}).join('');
+  const qc=document.getElementById('qcount');if(qc)qc.textContent='共 '+total+' 筆 · '+period+' · 最低 '+minPts+' 點';
+}
+function buildExport(){const fp=document.getElementById('export-period').value;const recs=fp==='全部期間'?records:records.filter(r=>r.period===fp);const wn=recs.filter(r=>r.note&&r.note.trim()!=='');if(!wn.length)return null;let lines=['考績備註紀錄（'+(fp==='全部期間'?'全部期間':fp)+'）','='.repeat(40)];cfg.members.forEach(m=>{const mr=wn.filter(r=>r.member===m);if(!mr.length)return;lines.push('','【'+m+'】','-'.repeat(30));cfg.cats.forEach((cat,i)=>{const cr=mr.filter(r=>r.cat===i);if(!cr.length)return;lines.push('▸ '+cat);cr.forEach(r=>{lines.push('  · ['+r.pts+'點] '+r.note+(r.date?' ('+r.date+')':''));});});});return lines.join('\n');}
+function renderExportStats(){const fp=document.getElementById('export-period')?.value;if(!fp)return;const recs=fp==='全部期間'?records:records.filter(r=>r.period===fp);const wn=recs.filter(r=>r.note&&r.note.trim()!=='');document.getElementById('export-stats').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem"><div style="background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:11px;color:#666;margin-bottom:4px">總紀錄筆數</div><div style="font-size:18px;font-weight:600">${recs.length}</div></div><div style="background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:11px;color:#666;margin-bottom:4px">有備註筆數</div><div style="font-size:18px;font-weight:600">${wn.length}</div></div><div style="background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:11px;color:#666;margin-bottom:4px">涉及組員</div><div style="font-size:18px;font-weight:600">${new Set(wn.map(r=>r.member)).size}</div></div></div>`;}
+function doExport(){const al=document.getElementById('export-alert'),content=buildExport();if(!content){al.className='alert err';al.textContent='此期間沒有含備註的紀錄';setTimeout(()=>{al.className='alert';},3000);return;}document.getElementById('csv-output').value=content;document.getElementById('csv-output-wrap').style.display='block';document.getElementById('copy-btn').style.display='inline-block';al.className='alert ok';al.textContent='✓ 內容已產生，請點「全部複製」';setTimeout(()=>{al.className='alert';},3000);}
+function copyExport(){const ta=document.getElementById('csv-output');ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy');const al=document.getElementById('export-alert');al.className='alert ok';al.textContent='✓ 已複製！';setTimeout(()=>{al.className='alert';},3000);}catch(e){}}
+let parsedRows=[];
+function parseImport(text){const lines=text.split('\n').map(l=>l.trim()).filter(Boolean),res=[],today=new Date().toLocaleDateString('zh-TW');for(let i=0;i<lines.length;i++){const line=lines[i];if(i===0&&/組員|姓名|name/i.test(line))continue;const parts=line.split(',').map(p=>p.trim());if(parts.length<3){res.push({line,error:'欄位不足',ok:false});continue;}const member=parts[0],catName=parts[1],pts=parseInt(parts[2]),note=parts.slice(3).join(',').trim();if(!cfg.members.includes(member)){res.push({line,error:`找不到組員「${member}」`,ok:false});continue;}const ci=cfg.cats.findIndex(c=>c===catName);if(ci===-1){res.push({line,error:`找不到類別「${catName}」`,ok:false});continue;}if(isNaN(pts)||pts<=0){res.push({line,error:'點數無效',ok:false});continue;}res.push({line,member,cat:ci,pts,note,date:today,ok:true});}return res;}
+function previewImport(){const text=document.getElementById('import-text').value,period=document.getElementById('import-period').value,el=document.getElementById('import-preview');if(!text.trim()){el.innerHTML='';return;}parsedRows=parseImport(text);const ok=parsedRows.filter(r=>r.ok),err=parsedRows.filter(r=>!r.ok);el.innerHTML=`<div style="font-size:13px;margin-bottom:8px">解析結果：<span style="color:#2e7d32;font-weight:500">${ok.length} 筆成功</span>${err.length?`・<span style="color:#c62828;font-weight:500">${err.length} 筆錯誤</span>`:''}</div><div style="overflow-x:auto"><table class="preview-table"><thead><tr><th>組員</th><th>類別</th><th>點數</th><th>備註</th><th>狀態</th></tr></thead><tbody>${parsedRows.map(r=>r.ok?`<tr><td>${r.member}</td><td><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span></td><td style="color:#1D9E75;font-weight:500">+${r.pts}</td><td style="color:#666">${r.note||'—'}</td><td style="color:#2e7d32">✓</td></tr>`:`<tr class="err-row"><td colspan="4" style="font-size:11px">${r.line}</td><td style="font-size:11px">✗ ${r.error}</td></tr>`).join('')}</tbody></table></div>${ok.length?`<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" onclick="confirmImport('${period}')">✓ 確認匯入 ${ok.length} 筆</button><button class="btn" onclick="clearImport()">取消</button></div>`:''}`;}
+function confirmImport(period){parsedRows.filter(r=>r.ok).forEach(r=>{records.push({id:Date.now()+Math.random(),member:r.member,cat:r.cat,pts:r.pts,period,note:r.note,date:r.date});});scheduleSave();document.getElementById('import-text').value='';document.getElementById('import-preview').innerHTML=`<div class="alert ok" style="display:block">✓ 已成功匯入（期間：${period}）</div>`;parsedRows=[];setTimeout(()=>{document.getElementById('import-preview').innerHTML='';},3000);}
+function clearImport(){document.getElementById('import-text').value='';document.getElementById('import-preview').innerHTML='';parsedRows=[];}
+function openSettings(){document.getElementById('settings-overlay').style.display='block';document.getElementById('cat-inputs').innerHTML=cfg.cats.map((c,i)=>`<div><label>類別 ${i+1}</label><input type="text" id="cn-${i}" value="${c}"></div>`).join('');document.getElementById('weight-inputs').innerHTML=cfg.cats.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="badge cat-${i}" style="min-width:56px;text-align:center">${c}</span><input type="number" id="wt-${i}" value="${cfg.weights[i]}" min="0" max="100" style="width:60px" oninput="updWTotal()"><span style="font-size:13px;color:#666">%</span></div>`).join('');updWTotal();document.getElementById('inp-pts-cfg').value=cfg.pts.join(',');document.getElementById('inp-periods-cfg').value=cfg.periods.join(',');document.getElementById('inp-members-cfg').value=cfg.members.join('\n');}
+function closeSettings(){document.getElementById('settings-overlay').style.display='none';}
+function updWTotal(){const total=cfg.cats.reduce((_,__,i)=>_+(parseInt(document.getElementById('wt-'+i)?.value)||0),0),el=document.getElementById('weight-total');el.textContent='目前總和：'+total+'%'+(total===100?' ✓':'（需調整至100%）');el.style.color=total===100?'#2e7d32':'#c62828';}
+function saveSettings(){const nc=cfg.cats.map((_,i)=>(document.getElementById('cn-'+i)?.value.trim()||cfg.cats[i]));const nw=cfg.cats.map((_,i)=>parseInt(document.getElementById('wt-'+i)?.value)||0);const al=document.getElementById('settingsAlert');if(nw.reduce((a,b)=>a+b,0)!==100){al.className='alert err';al.textContent='權重總和必須為100%';return;}cfg.cats=nc;cfg.weights=nw;cfg.pts=document.getElementById('inp-pts-cfg').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);cfg.periods=document.getElementById('inp-periods-cfg').value.split(',').map(s=>s.trim()).filter(Boolean);cfg.members=document.getElementById('inp-members-cfg').value.split('\n').map(s=>s.trim()).filter(Boolean);fbSave().then(()=>{al.className='alert ok';al.textContent='✓ 設定已儲存並同步至雲端';setTimeout(()=>{al.className='alert';closeSettings();initUI();},1200);});}
+fbLoad();
+</script>
+</body>
+</html>
