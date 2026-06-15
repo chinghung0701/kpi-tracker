@@ -35,6 +35,8 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
 .btn-danger:hover{background:#ffeaea}
 .btn-warning{color:#e65100;border-color:#e65100}
 .btn-warning:hover{background:#fff3e0}
+.btn-google{background:#fff;color:#444;border:1px solid #ddd;display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:15px;border-radius:8px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn-google:hover{background:#f5f5f5;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .section-title{font-size:14px;font-weight:500;margin-bottom:.75rem}
 .rec-list{display:flex;flex-direction:column;gap:6px}
 .rec-item{border:1px solid #e0e0e0;border-radius:8px;padding:8px 10px;background:#fff}
@@ -97,17 +99,58 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
 .query-date{font-size:11px;color:#999;white-space:nowrap}
 .migrate-box{background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:10px 12px;margin-bottom:1rem}
 .backup-box{background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:10px 12px;margin-bottom:1rem}
+/* 登入畫面 */
+#login-screen{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#f5f5f5;z-index:9999;align-items:center;justify-content:center}
+#login-screen.show{display:flex}
+.login-card{background:#fff;border-radius:16px;padding:2.5rem 2rem;max-width:360px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,.1);text-align:center}
+.login-logo{font-size:40px;margin-bottom:1rem}
+.login-title{font-size:20px;font-weight:600;margin-bottom:.5rem}
+.login-subtitle{font-size:13px;color:#666;margin-bottom:2rem}
+.login-user{display:flex;align-items:center;gap:10px;background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:1rem}
+.login-user img{width:36px;height:36px;border-radius:50%}
+.login-user-info{text-align:left}
+.login-user-name{font-size:13px;font-weight:500}
+.login-user-email{font-size:11px;color:#666}
+.login-divider{border:none;border-top:1px solid #e0e0e0;margin:1rem 0}
 @media(max-width:600px){.form-row,.form-row-3,.cat-card-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+
+<!-- 登入畫面 -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">📊</div>
+    <div class="login-title">考績追蹤系統</div>
+    <div class="login-subtitle">請使用 Google 帳號登入</div>
+    <div id="login-user-info" style="display:none">
+      <div class="login-user" id="login-user-box"></div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="confirmLogin()">✓ 確認登入</button>
+      <button class="btn" style="width:100%;font-size:12px" onclick="switchAccount()">切換帳號</button>
+    </div>
+    <div id="login-btn-wrap">
+      <button class="btn-google" style="width:100%;justify-content:center" onclick="signInWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A353" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/></svg>
+        使用 Google 帳號登入
+      </button>
+    </div>
+    <div id="login-alert" class="alert" style="margin-top:1rem"></div>
+  </div>
+</div>
+
+<!-- 主系統 -->
+<div id="main-app" style="display:none">
 <div class="container">
   <div class="header">
     <div>
       <div class="title">考績追蹤系統</div>
       <div class="status"><span class="sync-dot busy" id="syncDot"></span><span id="syncLabel">連線中...</span></div>
     </div>
-    <button class="btn btn-sm" onclick="openSettings()">⚙ 設定</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div id="user-badge" style="font-size:12px;color:#666"></div>
+      <button class="btn btn-sm" onclick="openSettings()">⚙ 設定</button>
+      <button class="btn btn-sm btn-danger" onclick="signOut()">登出</button>
+    </div>
   </div>
   <div class="tabs">
     <button class="tab active" id="tab-add" onclick="switchTab('add',this)">＋ 新增</button>
@@ -130,7 +173,7 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
         <div><label>點數</label><select id="sel-pts"></select></div>
         <div><label>評估期間</label><select id="sel-period"></select></div>
       </div>
-      <div style="margin-bottom:10px"><label>備份（選填）</label><input type="text" id="inp-note" placeholder="例：完成特稿、專題報導..."></div>
+      <div style="margin-bottom:10px"><label>備註（選填）</label><input type="text" id="inp-note" placeholder="例：完成特稿、專題報導..."></div>
       <button class="btn btn-primary" onclick="addRecord()">✓ 新增紀錄</button>
     </div>
     <div class="card">
@@ -186,7 +229,6 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
         <textarea id="csv-output" class="csv-output" readonly></textarea>
       </div>
     </div>
-
     <div class="card">
       <div class="section-title">📦 完整資料備份與還原</div>
       <div class="backup-box">
@@ -230,6 +272,7 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
     <div id="rank-content"></div>
   </div>
 </div>
+</div>
 
 <div id="settings-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:999;overflow-y:auto;padding:2rem 1rem">
   <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:520px;margin:0 auto">
@@ -262,18 +305,105 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
       <button class="btn" onclick="closeSettings()">取消</button>
     </div>
   </div>
-</div><script>
+</div><script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getFirestore,doc,getDoc,setDoc}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signOut as fbSignOut,onAuthStateChanged,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+const FB={apiKey:"AIzaSyBO9MhO6JU9YL6G0o1zEx1g0a2IxuCSN1I",authDomain:"kpi-tracker-483df.firebaseapp.com",projectId:"kpi-tracker-483df",storageBucket:"kpi-tracker-483df.firebasestorage.app",messagingSenderId:"533828830086",appId:"1:533828830086:web:1dae03a5a9b8e5d764a207"};
+const app=initializeApp(FB);
+const db=getFirestore(app);
+const auth=getAuth(app);
+const provider=new GoogleAuthProvider();
+
 const PROJECT='kpi-tracker-483df';
 const API_KEY='AIzaSyBO9MhO6JU9YL6G0o1zEx1g0a2IxuCSN1I';
 const BASE=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/kpi_tracker`;
 const LS_KEY='perf_tracker_v3',ADJ_KEY='perf_adj_v1';
 const DEFAULT={cats:['類別A','類別B','類別C','類別D'],weights:[25,25,25,25],pts:[1,2,3,5],periods:['2025Q1','2025Q2','2025Q3','2025Q4'],members:Array.from({length:25},(_,i)=>'組員'+(i+1))};
-let cfg,records=[],adjScores={},saveTimer=null;
+let cfg,records=[],adjScores={},saveTimer=null,currentUser=null,idToken=null;
+
 function syncStatus(state,msg){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncLabel');if(!dot||!lbl)return;dot.className='sync-dot '+state;lbl.textContent=msg;}
+
+// ── 登入 ──
+window.signInWithGoogle=async function(){
+  const al=document.getElementById('login-alert');
+  try{
+    await setPersistence(auth,browserLocalPersistence);
+    const result=await signInWithPopup(auth,provider);
+    const user=result.user;
+    idToken=await user.getIdToken();
+    showUserInfo(user);
+  }catch(e){
+    al.className='alert err';al.textContent='登入失敗：'+e.message;al.style.display='block';
+  }
+};
+function showUserInfo(user){
+  document.getElementById('login-btn-wrap').style.display='none';
+  document.getElementById('login-user-info').style.display='block';
+  document.getElementById('login-user-box').innerHTML=`
+    <img src="${user.photoURL||''}" onerror="this.style.display='none'">
+    <div class="login-user-info">
+      <div class="login-user-name">${user.displayName||''}</div>
+      <div class="login-user-email">${user.email||''}</div>
+    </div>`;
+}
+window.confirmLogin=async function(){
+  if(!currentUser)return;
+  idToken=await currentUser.getIdToken();
+  showMainApp();
+};
+window.switchAccount=async function(){
+  await fbSignOut(auth);
+  document.getElementById('login-btn-wrap').style.display='block';
+  document.getElementById('login-user-info').style.display='none';
+};
+window.signOut=async function(){
+  await fbSignOut(auth);
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').classList.add('show');
+  document.getElementById('login-btn-wrap').style.display='block';
+  document.getElementById('login-user-info').style.display='none';
+};
+function showMainApp(){
+  document.getElementById('login-screen').classList.remove('show');
+  document.getElementById('main-app').style.display='block';
+  document.getElementById('user-badge').textContent=currentUser?.displayName||currentUser?.email||'';
+  fbLoad();
+}
+
+// 監聽登入狀態（記住登入）
+onAuthStateChanged(auth,async user=>{
+  if(user){
+    currentUser=user;
+    idToken=await user.getIdToken();
+    showMainApp();
+  }else{
+    currentUser=null;idToken=null;
+    document.getElementById('login-screen').classList.add('show');
+    document.getElementById('main-app').style.display='none';
+  }
+});
+
+// ── Firebase REST（帶 token）──
 function toFS(val){if(val===null||val===undefined)return{nullValue:null};if(typeof val==='boolean')return{booleanValue:val};if(typeof val==='number')return Number.isInteger(val)?{integerValue:String(val)}:{doubleValue:val};if(typeof val==='string')return{stringValue:val};if(Array.isArray(val))return{arrayValue:{values:val.map(toFS)}};if(typeof val==='object'){const fields={};for(const k in val)fields[k]=toFS(val[k]);return{mapValue:{fields}};}return{stringValue:String(val)};}
 function fromFS(val){if(!val)return null;if('nullValue'in val)return null;if('booleanValue'in val)return val.booleanValue;if('integerValue'in val)return parseInt(val.integerValue);if('doubleValue'in val)return val.doubleValue;if('stringValue'in val)return val.stringValue;if('arrayValue'in val)return(val.arrayValue.values||[]).map(fromFS);if('mapValue'in val){const o={};for(const k in(val.mapValue.fields||{}))o[k]=fromFS(val.mapValue.fields[k]);return o;}return null;}
-async function fbGet(docId){const res=await fetch(`${BASE}/${docId}?key=${API_KEY}`);if(res.status===404)return null;const d=await res.json();if(d.error)return null;const out={};for(const k in(d.fields||{}))out[k]=fromFS(d.fields[k]);return out;}
-async function fbSet(docId,data){const fields={};for(const k in data)fields[k]=toFS(data[k]);const res=await fetch(`${BASE}/${docId}?key=${API_KEY}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields})});if(!res.ok)throw new Error('SET '+res.status);}
+
+async function getHeaders(){
+  if(currentUser)idToken=await currentUser.getIdToken();
+  return{'Content-Type':'application/json','Authorization':'Bearer '+idToken};
+}
+async function fbGet(docId){
+  const res=await fetch(`${BASE}/${docId}`,{headers:await getHeaders()});
+  if(res.status===404)return null;
+  const d=await res.json();if(d.error)return null;
+  const out={};for(const k in(d.fields||{}))out[k]=fromFS(d.fields[k]);return out;
+}
+async function fbSet(docId,data){
+  const fields={};for(const k in data)fields[k]=toFS(data[k]);
+  const res=await fetch(`${BASE}/${docId}`,{method:'PATCH',headers:await getHeaders(),body:JSON.stringify({fields})});
+  if(!res.ok)throw new Error('SET '+res.status);
+}
 async function fbLoad(){
   try{
     syncStatus('busy','連線 Firebase...');
@@ -285,18 +415,17 @@ async function fbLoad(){
     initUI();
   }catch(e){
     syncStatus('err','連線失敗：'+e.message);
-    cfg=JSON.parse(JSON.stringify(DEFAULT));records=[];adjScores={};
-    initUI();
+    cfg=JSON.parse(JSON.stringify(DEFAULT));records=[];adjScores={};initUI();
   }
 }
 async function fbSave(){try{syncStatus('busy','同步中...');await fbSet('perf_data',{cfg,records});syncStatus('ok','已同步 · '+records.length+' 筆紀錄');}catch(e){syncStatus('err','同步失敗');}}
 async function fbSaveAdj(){try{await fbSet('perf_adj',{adj:adjScores});}catch(e){}}
 function scheduleSave(){if(saveTimer)clearTimeout(saveTimer);saveTimer=setTimeout(fbSave,800);}
+
 function migrateLocal(){
   const al=document.getElementById('migrate-alert');
   try{
-    const r=localStorage.getItem(LS_KEY);
-    if(!r){al.className='alert err';al.textContent='本機沒有找到舊資料';return;}
+    const r=localStorage.getItem(LS_KEY);if(!r){al.className='alert err';al.textContent='本機沒有找到舊資料';return;}
     const d=JSON.parse(r);cfg=d.cfg;records=d.records;
     const a=localStorage.getItem(ADJ_KEY);adjScores=a?JSON.parse(a):{};
     fbSave().then(()=>fbSaveAdj()).then(()=>{al.className='alert ok';al.textContent='✓ 遷移成功！'+records.length+' 筆紀錄已上傳';initUI();setTimeout(()=>{al.className='alert';},4000);});
@@ -331,8 +460,9 @@ function restoreBackup(){
       initUI();document.getElementById('restore-input').value='';
       setTimeout(()=>{al.className='alert';},4000);
     });
-  }catch(e){al.className='alert err';al.textContent='還原失敗：'+e.message+'（請確認 JSON 格式正確）';}
+  }catch(e){al.className='alert err';al.textContent='還原失敗：'+e.message;}
 }
+
 function initUI(){
   const last=cfg.periods[cfg.periods.length-1]||'';
   pSel('sel-member',cfg.members);pCat('sel-cat');pPts('sel-pts');
@@ -377,8 +507,7 @@ function renderRecent(){
 }
 function renderPerson(){
   const m=document.getElementById('sel-view-member').value,period=document.getElementById('sel-view-period').value;if(!m||!period)return;
-  const{ct,cb,ca,final}=finalScore(m,period);
-  const recs=records.filter(r=>r.member===m&&r.period===period);
+  const{ct,cb,ca,final}=finalScore(m,period);const recs=records.filter(r=>r.member===m&&r.period===period);
   const cards=cfg.cats.map((c,i)=>{const base=cb[i],adj=ca[i],delta=adjScores[akey(period,m,i)]||0,mod=delta!==0;return `<div class="cat-card"><div style="font-size:11px;font-weight:500;margin-bottom:8px"><span class="badge cat-${i}">${c}</span></div><div class="cat-card-row"><span class="cat-card-key">累積點數</span><span class="cat-card-val">${ct[i]} 點</span></div><div class="cat-card-row"><span class="cat-card-key">考績分數${mod?` <span style="font-size:10px;color:#EF9F27">(已微調)</span>`:''}</span><div class="score-adj"><button class="adj-btn" onclick="adjustScore('${period}','${m}',${i},-1)">−</button><span class="adj-score${mod?' modified':''}">${adj}</span><button class="adj-btn" onclick="adjustScore('${period}','${m}',${i},1)">+</button>${mod?`<button class="adj-btn" style="font-size:10px;color:#999" onclick="resetAdj('${period}','${m}',${i})" title="還原">↺</button>`:''}</div></div>${mod?`<div style="font-size:10px;color:#999;text-align:right">系統值：${base}</div>`:''}</div>`;}).join('');
   const rows=cfg.cats.map((c,i)=>{const adj=ca[i],delta=adjScores[akey(period,m,i)]||0,w=Math.round(adj*(cfg.weights[i]/100)*10)/10;return `<tr><td><span class="badge cat-${i}">${c}</span></td><td style="text-align:center">${ct[i]}</td><td style="text-align:center;font-weight:500${delta?';color:#EF9F27':''}">${adj}${delta?` <span style="font-size:10px">(${delta>0?'+':''}${delta})</span>`:''}</td><td style="text-align:center">${cfg.weights[i]}%</td><td style="text-align:center;font-weight:500">${w}</td></tr>`;}).join('');
   document.getElementById('person-content').innerHTML=`<div class="card"><div class="section-title">各類別成績</div><div class="cat-card-grid">${cards}</div></div><div class="card"><div class="section-title">考績計算總表</div><table class="score-table"><thead><tr><th>類別</th><th style="text-align:center">累積點數</th><th style="text-align:center">考績分數</th><th style="text-align:center">權重</th><th style="text-align:center">加權分數</th></tr></thead><tbody>${rows}</tbody></table><div class="final-box"><div><div style="font-size:13px;color:#666">最終考績</div><div style="font-size:11px;color:#999;margin-top:2px">各類別加權分數總和</div></div><div style="font-size:28px;font-weight:600;color:#1D9E75">${final}</div></div></div><div class="card"><div class="section-title">本期紀錄明細</div>${recs.length?`<table class="detail-table"><thead><tr><th>日期</th><th>類別</th><th>點數</th><th>備註</th></tr></thead><tbody>${[...recs].reverse().map(r=>`<tr><td style="color:#999">${r.date}</td><td><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span></td><td style="color:#1D9E75;font-weight:500">+${r.pts}</td><td style="color:#666">${r.note||'—'}</td></tr>`).join('')}</tbody></table>`:'<div style="text-align:center;color:#999;font-size:13px;padding:1rem 0">本期尚無紀錄</div>'}</div>`;
@@ -412,7 +541,9 @@ function openSettings(){document.getElementById('settings-overlay').style.displa
 function closeSettings(){document.getElementById('settings-overlay').style.display='none';}
 function updWTotal(){const total=cfg.cats.reduce((_,__,i)=>_+(parseInt(document.getElementById('wt-'+i)?.value)||0),0),el=document.getElementById('weight-total');el.textContent='目前總和：'+total+'%'+(total===100?' ✓':'（需調整至100%）');el.style.color=total===100?'#2e7d32':'#c62828';}
 function saveSettings(){const nc=cfg.cats.map((_,i)=>(document.getElementById('cn-'+i)?.value.trim()||cfg.cats[i]));const nw=cfg.cats.map((_,i)=>parseInt(document.getElementById('wt-'+i)?.value)||0);const al=document.getElementById('settingsAlert');if(nw.reduce((a,b)=>a+b,0)!==100){al.className='alert err';al.textContent='權重總和必須為100%';return;}cfg.cats=nc;cfg.weights=nw;cfg.pts=document.getElementById('inp-pts-cfg').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);cfg.periods=document.getElementById('inp-periods-cfg').value.split(',').map(s=>s.trim()).filter(Boolean);cfg.members=document.getElementById('inp-members-cfg').value.split('\n').map(s=>s.trim()).filter(Boolean);fbSave().then(()=>{al.className='alert ok';al.textContent='✓ 設定已儲存並同步至雲端';setTimeout(()=>{al.className='alert';closeSettings();initUI();},1200);});}
-fbLoad();
+
+// 將函式綁定到 window 供 HTML onclick 使用
+window.switchTab=switchTab;window.addRecord=addRecord;window.askDelete=askDelete;window.cancelDelete=cancelDelete;window.confirmDelete=confirmDelete;window.startEdit=startEdit;window.cancelEdit=cancelEdit;window.saveEdit=saveEdit;window.adjustScore=adjustScore;window.resetAdj=resetAdj;window.renderPerson=renderPerson;window.renderRank=renderRank;window.runQuery=runQuery;window.renderRecent=renderRecent;window.renderExportStats=renderExportStats;window.doExport=doExport;window.copyExport=copyExport;window.previewImport=previewImport;window.confirmImport=confirmImport;window.clearImport=clearImport;window.openSettings=openSettings;window.closeSettings=closeSettings;window.updWTotal=updWTotal;window.saveSettings=saveSettings;window.migrateLocal=migrateLocal;window.exportBackup=exportBackup;window.copyBackup=copyBackup;window.restoreBackup=restoreBackup;
 </script>
 </body>
 </html>
