@@ -302,55 +302,32 @@ const app=initializeApp(FB);
 const db=getFirestore(app);
 const auth=getAuth(app);
 const provider=new GoogleAuthProvider();
-
 const PROJECT='kpi-tracker-483df';
 const API_KEY='AIzaSyBO9MhO6JU9YL6G0o1zEx1g0a2IxuCSN1I';
 const BASE=`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/kpi_tracker`;
 const LS_KEY='perf_tracker_v3',ADJ_KEY='perf_adj_v1';
 const DEFAULT={cats:['類別A','類別B','類別C','類別D'],weights:[25,25,25,25],pts:[1,2,3,5],periods:['2025Q1','2025Q2','2025Q3','2025Q4'],members:Array.from({length:25},(_,i)=>'組員'+(i+1))};
 const ADJ_LIMIT=2;
+const SCORE_CAP=95;
+const RATE_FACTOR=0.5;
 let cfg,records=[],adjScores={},saveTimer=null,currentUser=null,idToken=null;
 
 function syncStatus(state,msg){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncLabel');if(!dot||!lbl)return;dot.className='sync-dot '+state;lbl.textContent=msg;}
 
 window.signInWithGoogle=async function(){
   const al=document.getElementById('login-alert');
-  try{
-    await setPersistence(auth,browserLocalPersistence);
-    const result=await signInWithPopup(auth,provider);
-    const user=result.user;
-    idToken=await user.getIdToken();
-    showUserInfo(user);
-  }catch(e){al.className='alert err';al.textContent='登入失敗：'+e.message;al.style.display='block';}
+  try{await setPersistence(auth,browserLocalPersistence);const result=await signInWithPopup(auth,provider);idToken=await result.user.getIdToken();showUserInfo(result.user);}
+  catch(e){al.className='alert err';al.textContent='登入失敗：'+e.message;al.style.display='block';}
 };
 function showUserInfo(user){
   document.getElementById('login-btn-wrap').style.display='none';
   document.getElementById('login-user-info').style.display='block';
   document.getElementById('login-user-box').innerHTML=`<img src="${user.photoURL||''}" onerror="this.style.display='none'"><div class="login-user-info"><div class="login-user-name">${user.displayName||''}</div><div class="login-user-email">${user.email||''}</div></div>`;
 }
-window.confirmLogin=async function(){
-  if(!currentUser)return;
-  idToken=await currentUser.getIdToken();
-  showMainApp();
-};
-window.switchAccount=async function(){
-  await fbSignOut(auth);
-  document.getElementById('login-btn-wrap').style.display='block';
-  document.getElementById('login-user-info').style.display='none';
-};
-window.signOut=async function(){
-  await fbSignOut(auth);
-  document.getElementById('main-app').style.display='none';
-  document.getElementById('login-screen').classList.add('show');
-  document.getElementById('login-btn-wrap').style.display='block';
-  document.getElementById('login-user-info').style.display='none';
-};
-function showMainApp(){
-  document.getElementById('login-screen').classList.remove('show');
-  document.getElementById('main-app').style.display='block';
-  document.getElementById('user-badge').textContent=currentUser?.displayName||currentUser?.email||'';
-  fbLoad();
-}
+window.confirmLogin=async function(){if(!currentUser)return;idToken=await currentUser.getIdToken();showMainApp();};
+window.switchAccount=async function(){await fbSignOut(auth);document.getElementById('login-btn-wrap').style.display='block';document.getElementById('login-user-info').style.display='none';};
+window.signOut=async function(){await fbSignOut(auth);document.getElementById('main-app').style.display='none';document.getElementById('login-screen').classList.add('show');document.getElementById('login-btn-wrap').style.display='block';document.getElementById('login-user-info').style.display='none';};
+function showMainApp(){document.getElementById('login-screen').classList.remove('show');document.getElementById('main-app').style.display='block';document.getElementById('user-badge').textContent=currentUser?.displayName||currentUser?.email||'';fbLoad();}
 onAuthStateChanged(auth,async user=>{
   if(user){currentUser=user;idToken=await user.getIdToken();showMainApp();}
   else{currentUser=null;idToken=null;document.getElementById('login-screen').classList.add('show');document.getElementById('main-app').style.display='none';}
@@ -426,7 +403,7 @@ function pCat(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=c
 function pPts(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=cfg.pts.map(p=>`<option value="${p}">+${p} 點</option>`).join('');}
 function switchTab(t,el){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));el.classList.add('active');document.getElementById('sec-'+t).classList.add('active');if(t==='person')renderPerson();if(t==='rank')renderRank();if(t==='export')renderExportStats();if(t==='query')runQuery();}
 
-// ── 計分邏輯（新規則）──
+// ── 計分邏輯（增幅50%、上限95分）──
 function p25(arr){const s=[...arr].sort((a,b)=>a-b);return s[Math.min(Math.floor(s.length*.25),s.length-1)];}
 function catScore(pts,all){
   if(pts===0)return 75;
@@ -436,13 +413,15 @@ function catScore(pts,all){
   const rank1=unique[0];
   const rank2=unique.length>=2?unique[1]:null;
   const rank3=unique.length>=3?unique[2]:null;
-  if(pts===rank1)return 92;
-  if(rank2!==null&&pts===rank2)return 91;
-  if(rank3!==null&&pts===rank3)return 90;
   const mn=Math.min(...nz);
   const p=p25(all);
   const base=rank3!==null?rank3:(rank2!==null?rank2:rank1);
-  if(pts>p&&pts<base){return base===p?80:Math.round(80+(pts-p)/(base-p)*10);}
+  const ratePerPt=(base===p)?0:10/(base-p);
+  const rateAbove=ratePerPt*RATE_FACTOR;
+  if(rank3!==null&&pts===rank3)return 90;
+  if(rank2!==null&&pts===rank2)return Math.min(90+Math.round((rank2-base)*rateAbove),SCORE_CAP);
+  if(pts===rank1)return Math.min(90+Math.round((rank1-base)*rateAbove),SCORE_CAP);
+  if(pts>p&&pts<base)return base===p?80:Math.round(80+(pts-p)/(base-p)*10);
   if(pts<=p){if(p===mn)return 78;return Math.round(78+(pts-mn)/(p-mn)*2);}
   return 80;
 }
@@ -459,12 +438,9 @@ function finalScore(m,period){
 
 // ── 微調（±2分上限）──
 function adjustScore(period,m,ci,d){
-  const k=akey(period,m,ci);
-  const cur=adjScores[k]||0;
-  const next=cur+d;
+  const k=akey(period,m,ci);const cur=adjScores[k]||0;const next=cur+d;
   if(next>ADJ_LIMIT||next<-ADJ_LIMIT)return;
-  adjScores[k]=next;
-  fbSaveAdj();renderPerson();
+  adjScores[k]=next;fbSaveAdj();renderPerson();
 }
 function resetAdj(period,m,ci){delete adjScores[akey(period,m,ci)];fbSaveAdj();renderPerson();}
 
