@@ -97,6 +97,17 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
 .query-pts{font-size:12px;font-weight:500;color:#1D9E75;min-width:36px}
 .query-note{font-size:12px;flex:1}
 .query-date{font-size:11px;color:#999;white-space:nowrap}
+.inbox-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px}
+.inbox-bar>div{min-width:120px}
+.inbox-table{width:100%;font-size:12px;border-collapse:collapse}
+.inbox-table th{text-align:left;font-weight:500;color:#666;padding:5px 6px;border-bottom:1px solid #e0e0e0;font-size:11px;white-space:nowrap}
+.inbox-table td{padding:5px 6px;border-bottom:1px solid #eee;vertical-align:middle}
+.inbox-table select{font-size:12px;padding:3px 5px;width:auto}
+.inbox-table tr.lead td{background:#FFF4E5}
+.inbox-table a{color:#0563C1;text-decoration:none}
+.inbox-table .btn{white-space:nowrap}
+.inbox-day{background:#f5f5f5;font-weight:500;font-size:12px}
+.tab .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:#E24B4A;color:#fff;font-size:11px;line-height:18px;text-align:center}
 .migrate-box{background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:10px 12px;margin-bottom:1rem}
 .backup-box{background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:10px 12px;margin-bottom:1rem}
 #login-screen{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#f5f5f5;z-index:9999;align-items:center;justify-content:center}
@@ -148,6 +159,7 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
   </div>
   <div class="tabs">
     <button class="tab active" id="tab-add" onclick="switchTab('add',this)">＋ 新增</button>
+    <button class="tab" id="tab-inbox" onclick="switchTab('inbox',this)">📥 待確認稿件<span class="cnt" id="inbox-cnt" style="display:none"></span></button>
     <button class="tab" id="tab-import" onclick="switchTab('import',this)">↑ 批次匯入</button>
     <button class="tab" id="tab-query" onclick="switchTab('query',this)">🔍 查詢</button>
     <button class="tab" id="tab-export" onclick="switchTab('export',this)">↓ 匯出</button>
@@ -177,10 +189,28 @@ textarea{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border
       <div id="recent-list"></div>
     </div>
   </div>
+  <div class="section" id="sec-inbox">
+    <div class="card">
+      <div class="section-title">待確認稿件</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px">每週掃描的稿件先放在這裡，<b>不計入分數</b>。點數與類別可直接修改，確認後才轉為正式紀錄並計分。「略過」的稿件之後不會再被寫入。</div>
+      <div id="inbox-alert" class="alert"></div>
+      <div class="inbox-bar">
+        <div><label>記者</label><select id="ib-member" onchange="renderInbox()"></select></div>
+        <div><label>來源</label><select id="ib-src" onchange="renderInbox()"><option value="">全部</option><option value="報版">報版稿</option><option value="數位">數位稿</option></select></div>
+        <div><label>類別</label><select id="ib-cat" onchange="renderInbox()"></select></div>
+        <div><label>確認後歸入期間</label><select id="ib-period"></select></div>
+        <div><button class="btn btn-primary" id="ib-confirm-btn" onclick="askConfirmInbox()">✓ 全部確認</button></div>
+        <div><button class="btn btn-sm" onclick="reloadInbox()">↻ 重新載入</button></div>
+      </div>
+      <div id="ib-confirm-box"></div>
+      <div id="ib-summary" style="font-size:12px;color:#666;margin-bottom:8px"></div>
+      <div id="inbox-list" style="overflow-x:auto"></div>
+    </div>
+  </div>
   <div class="section" id="sec-import">
     <div class="card">
       <div class="section-title">批次匯入說明</div>
-      <div class="hint-box">格式：組員, 類別, 點數, 備註<br>範例：王駿杰, 類別A, 5, 5/7 A8全版5文<br><br>· 類別請填寫設定中的類別名稱<br>· 備註可留空（僅需三個欄位）<br>· 每行一筆，第一行可為標題列（自動略過）</div>
+      <div class="hint-box">格式：組員, 類別, 點數, 備註<br>範例：王駿杰, 類別A, 5, 5/7 A8全版5文<br><br>· 類別請填寫設定中的類別名稱<br>· 備註可留空（僅需三個欄位）<br>· 每行一筆，第一行可為標題列（自動略過）<br>· 備註含 #文章編號 者，同組員、同類別、同編號若已存在會自動略過</div>
       <div class="form-row"><div><label>套用期間</label><select id="import-period"></select></div></div>
       <label>貼入資料</label>
       <textarea id="import-text" rows="8" style="margin-top:4px;margin-bottom:10px"></textarea>
@@ -311,6 +341,7 @@ const ADJ_LIMIT=2;
 const SCORE_CAP=95;
 const RATE_FACTOR=0.5;
 let cfg,records=[],adjScores={},saveTimer=null,currentUser=null,idToken=null;
+let inbox={items:[],skipped:[]},inboxReady=false,ibConfirming=false;
 
 function syncStatus(state,msg){const dot=document.getElementById('syncDot'),lbl=document.getElementById('syncLabel');if(!dot||!lbl)return;dot.className='sync-dot '+state;lbl.textContent=msg;}
 
@@ -341,7 +372,8 @@ async function fbSet(docId,data){const fields={};for(const k in data)fields[k]=t
 async function fbLoad(){
   try{
     syncStatus('busy','連線 Firebase...');
-    const[d,a]=await Promise.all([fbGet('perf_data'),fbGet('perf_adj')]);
+    const[d,a,ib]=await Promise.all([fbGet('perf_data'),fbGet('perf_adj'),fbGet('perf_inbox').catch(()=>null)]);
+    inbox={items:(ib&&ib.items)||[],skipped:(ib&&ib.skipped)||[]};inboxReady=true;
     if(d){cfg=d.cfg||JSON.parse(JSON.stringify(DEFAULT));records=d.records||[];}
     else{cfg=JSON.parse(JSON.stringify(DEFAULT));records=[];}
     adjScores=a?a.adj||{}:{};
@@ -396,12 +428,12 @@ function initUI(){
   pSel('export-period',['全部期間',...cfg.periods],'全部期間');pSel('q-period',cfg.periods,last);
   const qc=document.getElementById('q-cat');
   if(qc)qc.innerHTML='<option value="">全部類別</option>'+cfg.cats.map((c,i)=>`<option value="${i}">${c}</option>`).join('');
-  renderRecent();renderExportStats();
+  renderRecent();renderExportStats();updInboxBadge();
 }
 function pSel(id,arr,def){const s=document.getElementById(id);if(!s)return;s.innerHTML=arr.map(v=>`<option value="${v}">${v}</option>`).join('');if(def!==undefined)s.value=def;}
 function pCat(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=cfg.cats.map((c,i)=>`<option value="${i}">${c}</option>`).join('');}
 function pPts(id){const s=document.getElementById(id);if(!s)return;s.innerHTML=cfg.pts.map(p=>`<option value="${p}">+${p} 點</option>`).join('');}
-function switchTab(t,el){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));el.classList.add('active');document.getElementById('sec-'+t).classList.add('active');if(t==='person')renderPerson();if(t==='rank')renderRank();if(t==='export')renderExportStats();if(t==='query')runQuery();}
+function switchTab(t,el){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));el.classList.add('active');document.getElementById('sec-'+t).classList.add('active');if(t==='person')renderPerson();if(t==='rank')renderRank();if(t==='export')renderExportStats();if(t==='query')runQuery();if(t==='inbox')reloadInbox();}
 
 // ── 計分邏輯（增幅50%、上限95分）──
 function p25(arr){const s=[...arr].sort((a,b)=>a-b);return s[Math.min(Math.floor(s.length*.25),s.length-1)];}
@@ -537,9 +569,137 @@ function renderExportStats(){const fp=document.getElementById('export-period')?.
 function doExport(){const al=document.getElementById('export-alert'),content=buildExport();if(!content){al.className='alert err';al.textContent='此期間沒有含備註的紀錄';setTimeout(()=>{al.className='alert';},3000);return;}document.getElementById('csv-output').value=content;document.getElementById('csv-output-wrap').style.display='block';document.getElementById('copy-btn').style.display='inline-block';al.className='alert ok';al.textContent='✓ 內容已產生，請點「全部複製」';setTimeout(()=>{al.className='alert';},3000);}
 function copyExport(){const ta=document.getElementById('csv-output');ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy');const al=document.getElementById('export-alert');al.className='alert ok';al.textContent='✓ 已複製！';setTimeout(()=>{al.className='alert';},3000);}catch(e){}}
 
+
+// ── 待確認稿件（perf_inbox）──
+function escH(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function ibKey(member,catName,aid){return member+'|'+catName+'|'+aid;}
+function recordKeySet(recs){return new Set(recs.map(r=>{const a=aidOf(r.note);return a&&cfg.cats[r.cat]!=null?ibKey(r.member,cfg.cats[r.cat],a):null;}).filter(Boolean));}
+// 嚴格讀取：只有「文件不存在」回傳 null，其他錯誤一律中止，避免讀取失敗時誤蓋資料
+async function fbGetStrict(docId){const res=await fetch(`${BASE}/${docId}`,{headers:await getHeaders()});if(res.status===404)return null;const d=await res.json();if(!res.ok||d.error)throw new Error('讀取 '+docId+' 失敗（'+res.status+'）'+(res.status===403?'：資料庫權限不足，請開放 kpi_tracker/perf_inbox 文件':''));const out={};for(const k in(d.fields||{}))out[k]=fromFS(d.fields[k]);return out;}
+async function loadInboxRemote(){const ib=await fbGetStrict('perf_inbox');return{items:(ib&&ib.items)||[],skipped:(ib&&ib.skipped)||[]};}
+async function saveInboxRemote(ib){await fbSet('perf_inbox',{items:ib.items,skipped:ib.skipped,updatedAt:new Date().toISOString()});}
+// 先讀最新內容再修改後寫回，避免不同分頁或排程同時寫入時互相覆蓋
+async function mutateInbox(fn){const cur=await loadInboxRemote();const out=fn(cur)||{};await saveInboxRemote(cur);inbox=cur;inboxReady=true;updInboxBadge();return out;}
+function updInboxBadge(){const el=document.getElementById('inbox-cnt');if(!el)return;const n=(inbox.items||[]).length;el.style.display=n?'inline-block':'none';el.textContent=n;}
+function ibAlert(cls,msg,keep){const al=document.getElementById('inbox-alert');if(!al)return;al.className='alert '+cls;al.textContent=msg;if(!keep)setTimeout(()=>{al.className='alert';},4000);}
+
+// 供每週掃描程式呼叫：await window.kpiInboxAdd([{aid,member,cat,pts,date,note,title,url,sec,lead,byline,joint,src,batch}])
+window.kpiInboxAdd=async function(items){
+  if(!cfg||!currentUser)return{ok:false,error:'系統尚未登入或尚未載入完成'};
+  if(!Array.isArray(items))return{ok:false,error:'items 必須是陣列'};
+  const res={ok:true,added:0,dupRecord:0,dupInbox:0,skipped:0,errors:[]};
+  try{
+  // 正式紀錄也先讀最新的，避免用到過期的本機資料
+  const d=await fbGetStrict('perf_data');if(d&&d.records){records=d.records;if(d.cfg)cfg=d.cfg;}
+  const recKeys=recordKeySet(records);
+  await mutateInbox(cur=>{
+    const inKeys=new Set(cur.items.map(x=>x.key)),skip=new Set(cur.skipped);
+    for(const it of items){
+      const aid=String(it.aid||'').trim(),member=String(it.member||'').trim(),cat=String(it.cat||'').trim(),pts=parseInt(it.pts);
+      if(!/^\d{6,}$/.test(aid)){res.errors.push((it.title||'?')+'：文章編號無效');continue;}
+      if(!cfg.members.includes(member)){res.errors.push(aid+'：找不到組員「'+member+'」');continue;}
+      if(!cfg.cats.includes(cat)){res.errors.push(aid+'：找不到類別「'+cat+'」');continue;}
+      if(isNaN(pts)||pts<=0){res.errors.push(aid+'：點數無效');continue;}
+      const key=ibKey(member,cat,aid);
+      if(recKeys.has(key)){res.dupRecord++;continue;}
+      if(inKeys.has(key)){res.dupInbox++;continue;}
+      if(skip.has(key)){res.skipped++;continue;}
+      let note=String(it.note||'').trim();if(!note.includes('#'+aid))note=(note+' #'+aid).trim();
+      cur.items.push({key,aid,member,cat,pts,defPts:pts,date:String(it.date||''),note,title:String(it.title||''),url:String(it.url||''),sec:String(it.sec||''),lead:!!it.lead,byline:String(it.byline||''),joint:!!it.joint,src:String(it.src||''),batch:String(it.batch||''),addedAt:new Date().toISOString()});
+      inKeys.add(key);res.added++;
+    }
+  });
+  }catch(e){return{ok:false,error:e.message};}
+  if(document.getElementById('sec-inbox')?.classList.contains('active'))renderInbox();
+  return res;
+};
+window.kpiInboxStatus=function(){return{loggedIn:!!currentUser,ready:!!cfg&&inboxReady,pending:(inbox.items||[]).length,skipped:(inbox.skipped||[]).length,cats:cfg?cfg.cats:[],pts:cfg?cfg.pts:[],periods:cfg?cfg.periods:[],members:cfg?cfg.members.length:0};};
+
+async function reloadInbox(){
+  if(!cfg)return;
+  try{inbox=await loadInboxRemote();inboxReady=true;}catch(e){ibAlert('err','讀取待確認稿件失敗：'+e.message,true);}
+  updInboxBadge();
+  const last=cfg.periods[cfg.periods.length-1]||'';
+  const ms=document.getElementById('ib-member'),cs=document.getElementById('ib-cat'),ps=document.getElementById('ib-period');
+  const mv=ms.value,cv=cs.value,pv=ps.value;
+  ms.innerHTML='<option value="">全部</option>'+cfg.members.map(m=>`<option value="${escH(m)}">${escH(m)}</option>`).join('');ms.value=mv||'';
+  cs.innerHTML='<option value="">全部</option>'+cfg.cats.map(c=>`<option value="${escH(c)}">${escH(c)}</option>`).join('');cs.value=cv||'';
+  ps.innerHTML=cfg.periods.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('');ps.value=pv||last;
+  renderInbox();
+}
+function ibFiltered(){
+  const m=document.getElementById('ib-member')?.value||'',src=document.getElementById('ib-src')?.value||'',c=document.getElementById('ib-cat')?.value||'';
+  return inbox.items.filter(x=>(!m||x.member===m)&&(!src||x.src===src)&&(!c||x.cat===c));
+}
+function renderInbox(){
+  const el=document.getElementById('inbox-list');if(!el)return;
+  const list=ibFiltered().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.aid.localeCompare(b.aid)||cfg.members.indexOf(a.member)-cfg.members.indexOf(b.member));
+  const btn=document.getElementById('ib-confirm-btn');if(btn){btn.textContent='✓ 全部確認（'+list.length+' 筆）';btn.disabled=!list.length;}
+  const sum={};list.forEach(x=>{sum[x.cat]=sum[x.cat]||{n:0,p:0};sum[x.cat].n++;sum[x.cat].p+=x.pts;});
+  document.getElementById('ib-summary').innerHTML=list.length?('目前顯示 '+list.length+' 筆（全部待確認 '+inbox.items.length+' 筆）　'+Object.entries(sum).map(([c,v])=>`<span class="badge cat-${cfg.cats.indexOf(c)}">${escH(c)}</span> ${v.n} 筆 ${v.p} 點`).join('　')):'';
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#999;font-size:13px;padding:1.5rem 0">'+(inbox.items.length?'沒有符合篩選條件的稿件':'目前沒有待確認稿件')+'</div>';return;}
+  let html='<table class="inbox-table"><thead><tr><th>記者</th><th>類別</th><th>點數</th><th>版次</th><th>標題</th><th>署名</th><th></th></tr></thead><tbody>',day='';
+  for(const x of list){
+    if(x.date!==day){day=x.date;html+=`<tr><td colspan="7" class="inbox-day">${escH(day)}</td></tr>`;}
+    const k=escH(x.key);
+    const cO=cfg.cats.map(c=>`<option value="${escH(c)}"${c===x.cat?' selected':''}>${escH(c)}</option>`).join('');
+    const pl=[...new Set([...cfg.pts,x.pts])].sort((a,b)=>a-b);
+    const pO=pl.map(p=>`<option value="${p}"${p===x.pts?' selected':''}>${p}</option>`).join('');
+    const changed=x.pts!==x.defPts;
+    html+=`<tr class="${x.lead?'lead':''}">
+      <td style="white-space:nowrap;font-weight:500">${escH(x.member)}${x.joint?' <span style="color:#999;font-weight:400">（合）</span>':''}</td>
+      <td><select data-k="${k}" onchange="ibEdit(this.dataset.k,'cat',this.value)">${cO}</select></td>
+      <td><select data-k="${k}" onchange="ibEdit(this.dataset.k,'pts',this.value)"${changed?' style="border-color:#EF9F27;color:#EF9F27"':''}>${pO}</select></td>
+      <td style="white-space:nowrap">${escH(x.sec)}${x.lead?' ⭐頭題':''}</td>
+      <td>${x.url?`<a href="${escH(x.url)}" target="_blank" rel="noopener">${escH(x.title)}</a>`:escH(x.title)}</td>
+      <td style="color:#666">${escH(x.byline)}</td>
+      <td><button class="btn btn-sm" data-k="${k}" onclick="ibSkip(this.dataset.k)">略過</button></td></tr>`;
+  }
+  el.innerHTML=html+'</tbody></table>';
+}
+async function ibEdit(key,field,val){
+  try{await mutateInbox(cur=>{const x=cur.items.find(i=>i.key===key);if(!x)return;if(field==='pts')x.pts=parseInt(val);
+    if(field==='cat'){const dupKey=ibKey(x.member,val,x.aid);if(dupKey!==x.key&&cur.items.some(i=>i.key===dupKey))throw new Error('同一記者同一篇已有「'+val+'」紀錄');x.cat=val;x.key=dupKey;}});}
+  catch(e){ibAlert('err','修改失敗：'+e.message,true);}
+  renderInbox();
+}
+async function ibSkip(key){
+  try{await mutateInbox(cur=>{cur.items=cur.items.filter(i=>i.key!==key);if(!cur.skipped.includes(key))cur.skipped.push(key);});ibAlert('ok','已略過 1 筆');}
+  catch(e){ibAlert('err','略過失敗：'+e.message,true);}
+  renderInbox();
+}
+function askConfirmInbox(){
+  const list=ibFiltered(),period=document.getElementById('ib-period').value,box=document.getElementById('ib-confirm-box');
+  if(!list.length||!period)return;
+  const pts=list.reduce((s,x)=>s+x.pts,0);
+  box.innerHTML=`<div class="rec-item confirming" style="margin-bottom:10px"><div style="font-size:13px;font-weight:500;margin-bottom:6px">確定將 ${list.length} 筆（共 ${pts} 點）轉為正式紀錄，歸入期間「${escH(period)}」？</div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="confirmInbox()">確認轉入</button><button class="btn btn-sm" onclick="document.getElementById('ib-confirm-box').innerHTML=''">取消</button></div></div>`;
+}
+async function confirmInbox(){
+  if(ibConfirming)return;ibConfirming=true;
+  const period=document.getElementById('ib-period').value,box=document.getElementById('ib-confirm-box');
+  const keys=new Set(ibFiltered().map(x=>x.key));
+  try{
+    syncStatus('busy','轉入正式紀錄中...');
+    const cur=await loadInboxRemote(),d=await fbGetStrict('perf_data');
+    if(d){if(d.records)records=d.records;if(d.cfg)cfg=d.cfg;}
+    const recKeys=recordKeySet(records),today=new Date().toLocaleDateString('zh-TW'),moved=[];let dup=0;
+    for(const x of cur.items){if(!keys.has(x.key))continue;const ci=cfg.cats.indexOf(x.cat);if(ci<0)continue;
+      if(recKeys.has(x.key)){dup++;moved.push(x.key);continue;}
+      records.push({id:Date.now()+Math.random(),member:x.member,cat:ci,pts:x.pts,period,note:x.note,date:today});recKeys.add(x.key);moved.push(x.key);}
+    await fbSet('perf_data',{cfg,records});
+    cur.items=cur.items.filter(x=>!moved.includes(x.key));await saveInboxRemote(cur);inbox=cur;
+    syncStatus('ok','已同步 · '+records.length+' 筆紀錄');
+    box.innerHTML='';ibAlert('ok','✓ 已轉入 '+(moved.length-dup)+' 筆正式紀錄（期間：'+period+'）'+(dup?'，'+dup+' 筆已存在而略過':''));
+    updInboxBadge();renderRecent();renderExportStats();renderInbox();
+  }catch(e){syncStatus('err','轉入失敗');ibAlert('err','轉入失敗，資料未變更：'+e.message,true);}
+  ibConfirming=false;
+}
+
 let parsedRows=[];
-function parseImport(text){const lines=text.split('\n').map(l=>l.trim()).filter(Boolean),res=[],today=new Date().toLocaleDateString('zh-TW');for(let i=0;i<lines.length;i++){const line=lines[i];if(i===0&&/組員|姓名|name/i.test(line))continue;const parts=line.split(',').map(p=>p.trim());if(parts.length<3){res.push({line,error:'欄位不足',ok:false});continue;}const member=parts[0],catName=parts[1],pts=parseInt(parts[2]),note=parts.slice(3).join(',').trim();if(!cfg.members.includes(member)){res.push({line,error:`找不到組員「${member}」`,ok:false});continue;}const ci=cfg.cats.findIndex(c=>c===catName);if(ci===-1){res.push({line,error:`找不到類別「${catName}」`,ok:false});continue;}if(isNaN(pts)||pts<=0){res.push({line,error:'點數無效',ok:false});continue;}res.push({line,member,cat:ci,pts,note,date:today,ok:true});}return res;}
-function previewImport(){const text=document.getElementById('import-text').value,period=document.getElementById('import-period').value,el=document.getElementById('import-preview');if(!text.trim()){el.innerHTML='';return;}parsedRows=parseImport(text);const ok=parsedRows.filter(r=>r.ok),err=parsedRows.filter(r=>!r.ok);el.innerHTML=`<div style="font-size:13px;margin-bottom:8px">解析結果：<span style="color:#2e7d32;font-weight:500">${ok.length} 筆成功</span>${err.length?`・<span style="color:#c62828;font-weight:500">${err.length} 筆錯誤</span>`:''}</div><div style="overflow-x:auto"><table class="preview-table"><thead><tr><th>組員</th><th>類別</th><th>點數</th><th>備註</th><th>狀態</th></tr></thead><tbody>${parsedRows.map(r=>r.ok?`<tr><td>${r.member}</td><td><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span></td><td style="color:#1D9E75;font-weight:500">+${r.pts}</td><td style="color:#666">${r.note||'—'}</td><td style="color:#2e7d32">✓</td></tr>`:`<tr class="err-row"><td colspan="4" style="font-size:11px">${r.line}</td><td style="font-size:11px">✗ ${r.error}</td></tr>`).join('')}</tbody></table></div>${ok.length?`<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" onclick="confirmImport('${period}')">✓ 確認匯入 ${ok.length} 筆</button><button class="btn" onclick="clearImport()">取消</button></div>`:''}`;}
+function aidOf(note){const m=/#(\d{6,})/.exec(note||'');return m?m[1]:null;}
+function parseImport(text){const lines=text.split('\n').map(l=>l.trim()).filter(Boolean),res=[],today=new Date().toLocaleDateString('zh-TW');const exist=new Set(records.map(r=>{const a=aidOf(r.note);return a?r.member+'|'+r.cat+'|'+a:null;}).filter(Boolean));const batch=new Set();for(let i=0;i<lines.length;i++){const line=lines[i];if(i===0&&/組員|姓名|name/i.test(line))continue;const parts=line.split(',').map(p=>p.trim());if(parts.length<3){res.push({line,error:'欄位不足',ok:false});continue;}const member=parts[0],catName=parts[1],pts=parseInt(parts[2]),note=parts.slice(3).join(',').trim();if(!cfg.members.includes(member)){res.push({line,error:`找不到組員「${member}」`,ok:false});continue;}const ci=cfg.cats.findIndex(c=>c===catName);if(ci===-1){res.push({line,error:`找不到類別「${catName}」`,ok:false});continue;}if(isNaN(pts)||pts<=0){res.push({line,error:'點數無效',ok:false});continue;}const aid=aidOf(note);if(aid){const k=member+'|'+ci+'|'+aid;if(exist.has(k)){res.push({line,error:'系統已有此筆（#'+aid+'），略過',ok:false,dup:true});continue;}if(batch.has(k)){res.push({line,error:'本次貼上重複（#'+aid+'），略過',ok:false,dup:true});continue;}batch.add(k);}res.push({line,member,cat:ci,pts,note,date:today,ok:true});}return res;}
+function previewImport(){const text=document.getElementById('import-text').value,period=document.getElementById('import-period').value,el=document.getElementById('import-preview');if(!text.trim()){el.innerHTML='';return;}parsedRows=parseImport(text);const ok=parsedRows.filter(r=>r.ok),dup=parsedRows.filter(r=>r.dup),err=parsedRows.filter(r=>!r.ok&&!r.dup);el.innerHTML=`<div style="font-size:13px;margin-bottom:8px">解析結果：<span style="color:#2e7d32;font-weight:500">${ok.length} 筆成功</span>${dup.length?`・<span style="color:#888;font-weight:500">${dup.length} 筆重複已略過</span>`:''}${err.length?`・<span style="color:#c62828;font-weight:500">${err.length} 筆錯誤</span>`:''}</div><div style="overflow-x:auto"><table class="preview-table"><thead><tr><th>組員</th><th>類別</th><th>點數</th><th>備註</th><th>狀態</th></tr></thead><tbody>${parsedRows.map(r=>r.ok?`<tr><td>${r.member}</td><td><span class="badge cat-${r.cat}">${cfg.cats[r.cat]}</span></td><td style="color:#1D9E75;font-weight:500">+${r.pts}</td><td style="color:#666">${r.note||'—'}</td><td style="color:#2e7d32">✓</td></tr>`:r.dup?`<tr style="color:#999;background:#f5f5f5"><td colspan="4" style="font-size:11px">${r.line}</td><td style="font-size:11px">⊘ ${r.error}</td></tr>`:`<tr class="err-row"><td colspan="4" style="font-size:11px">${r.line}</td><td style="font-size:11px">✗ ${r.error}</td></tr>`).join('')}</tbody></table></div>${ok.length?`<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-primary" onclick="confirmImport('${period}')">✓ 確認匯入 ${ok.length} 筆</button><button class="btn" onclick="clearImport()">取消</button></div>`:''}`;}
 function confirmImport(period){parsedRows.filter(r=>r.ok).forEach(r=>{records.push({id:Date.now()+Math.random(),member:r.member,cat:r.cat,pts:r.pts,period,note:r.note,date:r.date});});scheduleSave();document.getElementById('import-text').value='';document.getElementById('import-preview').innerHTML=`<div class="alert ok" style="display:block">✓ 已成功匯入（期間：${period}）</div>`;parsedRows=[];setTimeout(()=>{document.getElementById('import-preview').innerHTML='';},3000);}
 function clearImport(){document.getElementById('import-text').value='';document.getElementById('import-preview').innerHTML='';parsedRows=[];}
 
@@ -548,7 +708,7 @@ function closeSettings(){document.getElementById('settings-overlay').style.displ
 function updWTotal(){const total=cfg.cats.reduce((_,__,i)=>_+(parseInt(document.getElementById('wt-'+i)?.value)||0),0),el=document.getElementById('weight-total');el.textContent='目前總和：'+total+'%'+(total===100?' ✓':'（需調整至100%）');el.style.color=total===100?'#2e7d32':'#c62828';}
 function saveSettings(){const nc=cfg.cats.map((_,i)=>(document.getElementById('cn-'+i)?.value.trim()||cfg.cats[i]));const nw=cfg.cats.map((_,i)=>parseInt(document.getElementById('wt-'+i)?.value)||0);const al=document.getElementById('settingsAlert');if(nw.reduce((a,b)=>a+b,0)!==100){al.className='alert err';al.textContent='權重總和必須為100%';return;}cfg.cats=nc;cfg.weights=nw;cfg.pts=document.getElementById('inp-pts-cfg').value.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>0);cfg.periods=document.getElementById('inp-periods-cfg').value.split(',').map(s=>s.trim()).filter(Boolean);cfg.members=document.getElementById('inp-members-cfg').value.split('\n').map(s=>s.trim()).filter(Boolean);fbSave().then(()=>{al.className='alert ok';al.textContent='✓ 設定已儲存並同步至雲端';setTimeout(()=>{al.className='alert';closeSettings();initUI();},1200);});}
 
-window.switchTab=switchTab;window.addRecord=addRecord;window.askDelete=askDelete;window.cancelDelete=cancelDelete;window.confirmDelete=confirmDelete;window.startEdit=startEdit;window.cancelEdit=cancelEdit;window.saveEdit=saveEdit;window.adjustScore=adjustScore;window.resetAdj=resetAdj;window.renderPerson=renderPerson;window.renderRank=renderRank;window.runQuery=runQuery;window.renderRecent=renderRecent;window.renderExportStats=renderExportStats;window.doExport=doExport;window.copyExport=copyExport;window.previewImport=previewImport;window.confirmImport=confirmImport;window.clearImport=clearImport;window.openSettings=openSettings;window.closeSettings=closeSettings;window.updWTotal=updWTotal;window.saveSettings=saveSettings;window.migrateLocal=migrateLocal;window.exportBackup=exportBackup;window.copyBackup=copyBackup;window.restoreBackup=restoreBackup;
+window.switchTab=switchTab;window.addRecord=addRecord;window.askDelete=askDelete;window.cancelDelete=cancelDelete;window.confirmDelete=confirmDelete;window.startEdit=startEdit;window.cancelEdit=cancelEdit;window.saveEdit=saveEdit;window.adjustScore=adjustScore;window.resetAdj=resetAdj;window.renderPerson=renderPerson;window.renderRank=renderRank;window.runQuery=runQuery;window.renderRecent=renderRecent;window.renderExportStats=renderExportStats;window.doExport=doExport;window.copyExport=copyExport;window.previewImport=previewImport;window.confirmImport=confirmImport;window.clearImport=clearImport;window.openSettings=openSettings;window.closeSettings=closeSettings;window.updWTotal=updWTotal;window.saveSettings=saveSettings;window.migrateLocal=migrateLocal;window.exportBackup=exportBackup;window.copyBackup=copyBackup;window.restoreBackup=restoreBackup;window.renderInbox=renderInbox;window.reloadInbox=reloadInbox;window.ibEdit=ibEdit;window.ibSkip=ibSkip;window.askConfirmInbox=askConfirmInbox;window.confirmInbox=confirmInbox;
 </script>
 </body>
 </html>
